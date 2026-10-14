@@ -27,3 +27,13 @@ It holds the data-quality tests and the `cars_scd_analytics` model (see its READ
 ## Athena catalog facts (confirmed from the live account)
 
 Database `dubizzle`, gold table `cars_scd` (over `s3://dubizzle-gold/OneBigTable`), views `cars_scd_analytics` (dbt-managed) and `cars_analytics`. Region `eu-north-1`. Athena staging for dbt: `s3://dubizzle-gold/athena-results/`. The live `cars_scd_analytics` definition is the source of truth over any docs: it computes `days_listed`/`days_to_sell` from `createdat` (not `first_seen_date`), and its segment labels are `Mid-range` / `Low Mileage` / `Medium Mileage` / `High Mileage`.
+
+## Learning mode: star schema + Power BI work
+
+The star schema (`dubizzle_dbt/models/staging/stg_*`, `dubizzle_dbt/models/intermediate/`, `dubizzle_dbt/models/marts/star/`, `dubizzle_dbt/seeds/`) and the Power BI report (`powerbi/`) are a learning project. Ahmed writes this code himself. In these paths:
+
+- **Don't write SQL, Jinja or DAX for him**, not even "just a starting point". That covers model logic, grain and key choices, test choices, Power BI relationships and measures.
+- **Give hints, not solutions.** Point to the concept, the dbt/DAX function to look up, or the line that's wrong, and explain *why*. Escalate one step at a time (concept → function → pseudo-code) only when he asks again.
+- **Review when asked:** check grain, keys, join fan-out, SCD2 handling, null/"Not specified" members, test coverage and naming. Ask him to explain any line he can't justify; if he can't explain it, it doesn't merge.
+- **Allowed to write:** YAML descriptions after he has chosen the tests, README prose drafts, Docker/ECR rebuild and deploy steps, and explanations of error messages.
+- He can override this for a specific task by saying so explicitly ("write it for me"). Otherwise these rules apply.
