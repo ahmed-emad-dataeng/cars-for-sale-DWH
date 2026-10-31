@@ -1,0 +1,41 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "UpdateLambdaCode",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:UpdateFunctionCode"
+      ],
+      "Resource": [
+        "arn:aws:lambda:eu-north-1:ACCOUNT_ID:function:DubizzleScrapeDay",
+        "arn:aws:lambda:eu-north-1:ACCOUNT_ID:function:bronze-to-silver-transformer",
+        "arn:aws:lambda:eu-north-1:ACCOUNT_ID:function:silver-to-gold-transformer",
+        "arn:aws:lambda:eu-north-1:ACCOUNT_ID:function:DailyNotification",
+        "arn:aws:lambda:eu-north-1:ACCOUNT_ID:function:DbtRunner"
+      ]
+    },
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "PushRunnerImage",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": "arn:aws:ecr:eu-north-1:ACCOUNT_ID:repository/dubizzle-dbt-runner"
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      function:
+        description: Function to deploy
+        type: choice
+        options:
+          - DailyNotification
+          - DubizzleScrapeDay
+          - bronze-to-silver-transformer
+          - silver-to-gold-transformer
+          - DbtRunner
+          - all
+
+# One deploy at a time. A second one waits rather than cancelling a running one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-north-1
+  ECR_REPOSITORY: dubizzle-dbt-runner
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  targets:
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      functions: ${{ steps.targets.outputs.functions }}
+      image: ${{ steps.targets.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - id: targets
+        env:
+          SELECTED: ${{ inputs.function }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ -n "$SELECTED" ]; then
+            python scripts/deploy_lambdas.py targets --select "$SELECTED" >> "$GITHUB_OUTPUT"
+          else
+            python scripts/deploy_lambdas.py targets --before "$BEFORE" --after "$AFTER" >> "$GITHUB_OUTPUT"
+          fi
+
+  guard:
+    needs: targets
+    if: needs.targets.outputs.functions != '[]' || needs.targets.outputs.image == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: python scripts/deploy_lambdas.py guard
+
+  deploy-lambdas:
+    needs: [targets, guard]
+    if: needs.targets.outputs.functions != '[]'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write # lets this job assume the AWS role through OIDC
+    strategy:
+      max-parallel: 1
+      matrix:
+        function: ${{ fromJSON(needs.targets.outputs.functions) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -r requirements-dev.txt
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - run: python scripts/deploy_lambdas.py deploy "${{ matrix.function }}"
+
+  deploy-dbt:
+    needs: [targets, guard]
+    if: needs.targets.outputs.image == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write # lets this job assume the AWS role through OIDC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -r requirements-dev.txt
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      # Lambda rejects the OCI index format, hence no provenance or SBOM.
+      - name: Build and push the runner image
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false --sbom=false \
+            --file "Lambda Scripts/dbt-runner/Dockerfile" \
+            --tag "$IMAGE:$GITHUB_SHA" \
+            --metadata-file image.json \
+            --push .
+          digest=$(jq -r '."containerimage.digest"' image.json)
+          echo "uri=$IMAGE@$digest" >> "$GITHUB_OUTPUT"
+        id: image
+      - run: python scripts/deploy_lambdas.py deploy-image DbtRunner "${{ steps.image.outputs.uri }}"

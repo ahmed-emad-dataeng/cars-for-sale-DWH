@@ -27,3 +27,9 @@ It holds the data-quality tests and the `cars_scd_analytics` model (see its READ
 ## Athena catalog facts (confirmed from the live account)
 
 Database `dubizzle`, gold table `cars_scd` (over `s3://dubizzle-gold/OneBigTable`), views `cars_scd_analytics` (dbt-managed) and `cars_analytics`. Region `eu-north-1`. Athena staging for dbt: `s3://dubizzle-gold/athena-results/`. The live `cars_scd_analytics` definition is the source of truth over any docs: it computes `days_listed`/`days_to_sell` from `createdat` (not `first_seen_date`), and its segment labels are `Mid-range` / `Low Mileage` / `Medium Mileage` / `High Mileage`.
+
+## Deploys go through GitHub Actions
+
+Merging to `main` deploys whatever changed (see [deploy/README.md](deploy/README.md)), so don't edit Lambda code in the console or push images by hand: the next deploy overwrites console edits. Live function names differ from the script names (`bronze-to-silver-transformer`, `silver-to-gold-transformer`, `DailyNotification`), and every zip's handler file is `lambda_function.py`; `deploy/lambdas.json` holds the mapping. Run `python scripts/deploy_lambdas.py check --profile <profile>` to compare the live code with the repo.
+
+CI runs Python 3.13 although the Lambdas run 3.14, because the layer's `pyarrow` 20 has no 3.14 wheel on PyPI. If the layer changes, update `requirements-lambda.txt` to match.
