@@ -1,0 +1,13 @@
+{
+  "zip_functions": [
+    { "name": "DubizzleScrapeDay", "source": "Lambda Scripts/DubizzleScrapeDay.py" },
+    { "name": "bronze-to-silver-transformer", "source": "Lambda Scripts/Bronze-to-Silver.py" },
+    { "name": "silver-to-gold-transformer", "source": "Lambda Scripts/Silver-to-Gold.py" },
+    { "name": "DailyNotification", "source": "Lambda Scripts/EmailNotify.py" }
+  ],
+  "image_functions": [
+    { "name": "DbtRunner" }
+  ],
+  "region": "eu-north-1",
+  "gold_bucket": "dubizzle-gold"
+}

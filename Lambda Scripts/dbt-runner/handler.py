@@ -50,10 +50,14 @@ PROFILES_DIR = f"{TASK_ROOT}/profiles"
 
 # Only /tmp is writable inside Lambda
 COMMON_ARGS = [
-    "--project-dir", PROJECT_DIR,
-    "--profiles-dir", PROFILES_DIR,
-    "--target-path", "/tmp/dbt-target",
-    "--log-path", "/tmp/dbt-logs",
+    "--project-dir",
+    PROJECT_DIR,
+    "--profiles-dir",
+    PROFILES_DIR,
+    "--target-path",
+    "/tmp/dbt-target",
+    "--log-path",
+    "/tmp/dbt-logs",
 ]
 
 

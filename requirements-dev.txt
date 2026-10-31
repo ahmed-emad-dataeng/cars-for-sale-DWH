@@ -1,0 +1,5 @@
+# Lint and test tools. boto3 comes from the Lambda runtime in production.
+black==26.5.1
+boto3[crt]==1.43.123  # crt: lets the drift check use `aws login` profiles
+pytest==9.1.1
+ruff==0.16.0

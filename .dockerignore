@@ -6,7 +6,6 @@ local/
 dubizzle_dbt/target/
 dubizzle_dbt/logs/
 dubizzle_dbt/dbt_packages/
-dubizzle_dbt/package-lock.yml
 *.parquet
 *.csv
 *.xlsx

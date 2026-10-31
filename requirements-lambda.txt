@@ -1,0 +1,6 @@
+# Versions in the live layers (AWSSDKPandas-Python314:2, PythonRequestsLayer:1),
+# as reported by `scripts/deploy_lambdas.py check`. Update when a layer changes.
+numpy==2.4.2
+pandas==2.3.3
+pyarrow==20.0.0
+requests==2.32.5

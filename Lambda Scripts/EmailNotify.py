@@ -33,7 +33,9 @@ sns = boto3.client("sns")
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def get_today_log_events(log_group: str, date_str: str, tz_offset: int = 0) -> list[str]:
+def get_today_log_events(
+    log_group: str, date_str: str, tz_offset: int = 0
+) -> list[str]:
     """
     Pull all log events for today from the given log group.
     `date_str` is a local-calendar date (per PIPELINE_TZ_OFFSET), so the window
@@ -43,7 +45,9 @@ def get_today_log_events(log_group: str, date_str: str, tz_offset: int = 0) -> l
     window while everything upstream of it still matches.
     """
     # Build time window in milliseconds
-    local_midnight = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    local_midnight = datetime.strptime(date_str, "%Y-%m-%d").replace(
+        tzinfo=timezone.utc
+    )
     today = local_midnight - timedelta(hours=tz_offset)
     start_ms = int(today.timestamp() * 1000)
     end_ms = int((today + timedelta(days=1)).timestamp() * 1000) - 1
@@ -257,15 +261,12 @@ def build_email(
     """
     Returns (subject, body) for the SNS email.
     """
-    dbt_ok = (
-        dbt is None  # section not configured — don't fail the digest over it
-        or (
-            dbt["invoked"]
-            and not dbt.get("fetch_error")
-            and dbt["passed"] is not None
-            and not dbt["failing_tests"]
-            and not dbt["error_tests"]
-        )
+    dbt_ok = dbt is None or (  # section not configured — don't fail the digest over it
+        dbt["invoked"]
+        and not dbt.get("fetch_error")
+        and dbt["passed"] is not None
+        and not dbt["failing_tests"]
+        and not dbt["error_tests"]
     )
 
     # Determine overall pipeline status
@@ -383,7 +384,9 @@ def build_email(
             "   was sent. Check the DbtRunner log group directly."
         )
     else:
-        dbt_icon = "✅" if (not dbt["failing_tests"] and not dbt["error_tests"]) else "⚠️"
+        dbt_icon = (
+            "✅" if (not dbt["failing_tests"] and not dbt["error_tests"]) else "⚠️"
+        )
         dbt_block = f"""
 {dbt_icon}  Data Quality (dbt)
    Tests passed        : {fmt(dbt['passed'])}
