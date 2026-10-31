@@ -111,6 +111,9 @@ def apply_scd(
                                          insert new row (status=active, first_seen_date preserved)
       - Existing ID, updatedAt same   → no change needed (row stays as-is)
       - Active ID missing from Silver → close row (status=deleted, scd_valid_to=today)
+      - Active row already opened today, updatedAt changed (same-day re-run)
+                                       → replace it in place instead of closing it,
+                                         so (id, scd_valid_from) stays unique
     """
 
     silver_ids = set(df_silver["id"].astype(str))
@@ -134,6 +137,7 @@ def apply_scd(
 
     rows_to_close = []  # indices in df_gold to update (scd_valid_to, status)
     rows_to_insert = []  # new rows to append
+    rows_to_replace = []  # indices in df_gold opened today, superseded by a re-run
 
     for _, silver_row in df_silver.iterrows():
         sid = str(silver_row["id"])
@@ -165,7 +169,13 @@ def apply_scd(
                 ].index[
                     -1
                 ]  # take the most recent if duplicates
-                rows_to_close.append(gold_row_idx)
+                if str(gold_row["scd_valid_from"]) == today:
+                    # Same-day re-run: the active row was opened earlier today.
+                    # Closing it would leave a zero-length version and a second
+                    # row with the same (id, scd_valid_from), so swap it instead.
+                    rows_to_replace.append(gold_row_idx)
+                else:
+                    rows_to_close.append(gold_row_idx)
                 new_row = silver_row.copy()
                 new_row["first_seen_date"] = gold_row["first_seen_date"]  # preserve
                 new_row["scd_valid_from"] = today
@@ -187,6 +197,8 @@ def apply_scd(
     )
     print(f"  Updated rows   : {len(rows_to_close)}")
     print(f"  Deleted rows   : {len(deleted_ids)}")
+    if rows_to_replace:
+        print(f"  Same-day rewrites: {len(rows_to_replace)} (re-run of {today})")
 
     # ── Apply closes (updated + deleted) to df_gold ───────────────────────────
     all_close_indices = list(set(rows_to_close + deleted_indices))
@@ -195,6 +207,10 @@ def apply_scd(
         df_gold.loc[rows_to_close, "scd_valid_to"] = today
         df_gold.loc[deleted_indices, "status"] = STATUS_DELETED
         df_gold.loc[deleted_indices, "scd_valid_to"] = today
+
+    # ── Drop rows superseded by a same-day re-run (replacements are inserted) ─
+    if rows_to_replace:
+        df_gold = df_gold.drop(index=rows_to_replace)
 
     # ── Append new rows ───────────────────────────────────────────────────────
     if rows_to_insert:
