@@ -1,4 +1,5 @@
 import json
+import gzip
 import boto3
 import requests
 from datetime import datetime, timezone
@@ -87,6 +88,34 @@ def save_to_s3(cars: list[dict], label: str) -> str:
     return key
 
 
+def save_jsonl_to_s3(
+    cars: list[dict], pass_label: str, scraped_at: datetime, prefix: str
+) -> str:
+    """
+    Save one record per line (gzipped JSON Lines) for Athena/dbt to read.
+    Each record is stamped with the pass it came from and the scrape time.
+    Hive-style folder (ingestion_date=...) so Athena can partition on it.
+    """
+    date_str = scraped_at.strftime("%Y-%m-%d")
+    key = f"{prefix}/ingestion_date={date_str}/{pass_label}.jsonl.gz"
+
+    lines = (
+        json.dumps(
+            {**car, "_pass": pass_label, "_scraped_at": scraped_at.isoformat()},
+            ensure_ascii=False,
+        )
+        for car in cars
+    )
+    body = gzip.compress(("\n".join(lines) + "\n").encode("utf-8"))
+    s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=key,
+        Body=body,
+        ContentType="application/gzip",
+    )
+    return key
+
+
 # ── Lambda handler ────────────────────────────────────────────────────────────
 def lambda_handler(event, context):
     print("Fetching newest cars …")
@@ -101,6 +130,20 @@ def lambda_handler(event, context):
     print(f"Saved to s3://{S3_BUCKET}/{key}")
     key = save_to_s3(newest, "newest_cars")
     print(f"Saved to s3://{S3_BUCKET}/{key}")
+
+    # Dual-write JSON Lines for the dbt pipeline. Skipped if JSONL_PREFIX is
+    # unset, and a failure here never blocks the legacy chain below.
+    jsonl_prefix = os.environ.get("JSONL_PREFIX")
+    if jsonl_prefix:
+        scraped_at = datetime.now(timezone.utc)
+        try:
+            for pass_label, cars in (("newest", newest), ("oldest", oldest)):
+                jsonl_key = save_jsonl_to_s3(cars, pass_label, scraped_at, jsonl_prefix)
+                print(f"  JSONL written → s3://{S3_BUCKET}/{jsonl_key}")
+        except Exception as e:
+            print(f" ⚠ JSONL write failed — {e}")
+    else:
+        print(" ⚠ JSONL_PREFIX not set — skipping JSONL write")
 
     # Chain to next Lambda (Bronze to Silver) if configured
     b2s_function = os.environ.get("BRONZE_TO_SILVER_FUNCTION_NAME")
