@@ -8,6 +8,8 @@
   "image_functions": [
     { "name": "DbtRunner" }
   ],
+  "image_source_prefixes": ["dubizzle_dbt/", "Lambda Scripts/dbt-runner/", ".dockerignore"],
+  "deploy_block_utc": ["03:25", "04:20"],
   "region": "eu-north-1",
   "gold_bucket": "dubizzle-gold"
 }

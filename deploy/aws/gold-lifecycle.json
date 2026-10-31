@@ -1,0 +1,10 @@
+{
+  "Rules": [
+    {
+      "ID": "expire-old-gold-versions",
+      "Status": "Enabled",
+      "Filter": {},
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 30 }
+    }
+  ]
+}

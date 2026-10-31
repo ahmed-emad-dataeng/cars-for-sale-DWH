@@ -1,6 +1,8 @@
 # 🚗 Used Car Market Intelligence Pipeline
 ### A serverless data lakehouse on AWS for tracking used car listings on Dubizzle Egypt
 
+[![Deploy](https://github.com/ahmed-emad-dataeng/cars-for-sale-DWH/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/ahmed-emad-dataeng/cars-for-sale-DWH/actions/workflows/deploy.yml)
+
 This project builds an end-to-end data pipeline that scrapes used car listings daily, tracks their full lifecycle using SCD Type-2, and makes them queryable via Athena for market intelligence. It uses **delisting events as a proxy for sales** to answer questions like *which cars sell fastest, and at what price points?*
 
 > **Status: live.** The pipeline has run unattended on AWS every day since **2026-03-07**.
@@ -109,6 +111,26 @@ The `dubizzle_dbt/` project runs right after every Silver-to-Gold merge, from a 
 
 `EmailNotify` runs on its own EventBridge schedule ~30 minutes after the scrape. It reads that day's CloudWatch Logs from every pipeline function, including the `DBT PASS/FAIL/SUMMARY` lines, and sends one SNS digest email with run status, row counts at each layer, and data-quality results. One email a day shows whether the pipeline is healthy.
 
+## CI/CD
+
+Every pull request has to pass CI before it can merge, and merging deploys only what changed. GitHub Actions gets short-lived AWS credentials through OIDC, so the repo stores no AWS keys.
+
+```mermaid
+flowchart LR
+    PR["Pull request"] --> CI["CI<br/>lint, unit tests,<br/>dbt image build + parse"]
+    CI -->|merge to main| T["Work out<br/>what changed"]
+    T --> G{"Daily run<br/>in progress?"}
+    G -->|no| L["Update Lambda zips"]
+    G -->|no| D["Push dbt image to ECR,<br/>update DbtRunner"]
+    G -->|yes| W["Fail, re-run later"]
+```
+
+- **Unit tests** pin the behaviour that can damage data if it breaks: the SCD merge, same-day re-runs, schema alignment and the sanity gate. They run against the same `pandas` and `pyarrow` versions as the live Lambda layer.
+- **The dbt image** is built on every PR, with `dbt parse` and a handler import run inside it.
+- **Deploys verify themselves**: each one compares the live code hash or image digest with what was built.
+
+See [`deploy/README.md`](deploy/README.md) for setup, manual deploys, rollback and the drift check.
+
 ## Lessons from Running It
 
 - **Relisting is real.** 5,730 listings were closed as `deleted` more than once: they disappeared, then came back. Some are genuine relistings; others are scrape gaps. This is the evidence behind the *scrape-gap buffer* item on the roadmap.
@@ -172,6 +194,7 @@ See [`Raw Data/README.md`](Raw%20Data/README.md#analytics-view-export-athena-vie
 | Transformation | `pandas`, `boto3` |
 | Data quality & BI view | `dbt-core` + `dbt-athena` (tests + `cars_scd_analytics` model), packaged as a Lambda container image (ECR) |
 | Monitoring | Amazon CloudWatch Logs (parsed by `EmailNotify`), Amazon SNS (digest email delivery) |
+| CI/CD | GitHub Actions with AWS OIDC, `pytest`, `ruff`, `black` |
 | Reporting | Athena view ready for BI; Power BI dashboard planned |
 
 ---
@@ -179,6 +202,10 @@ See [`Raw Data/README.md`](Raw%20Data/README.md#analytics-view-export-athena-vie
 ## Repository Structure
 
 ```
+├── .github/workflows/                 # ci.yml (every PR) and deploy.yml (merge to main)
+├── deploy/                            # Function list, one-time AWS setup, deployment guide
+├── scripts/deploy_lambdas.py          # Drift check and deploy logic used by the workflows
+├── tests/                             # Unit tests for the Lambda code and deploy script
 ├── Lambda Scripts/
 │   ├── DubizzleScrapeDay.py           # Production scraper: hits Dubizzle API, saves raw JSON to Bronze
 │   ├── dubizzleLambda.py              # Standalone reference/template version of the scraper (no S3 config, hardcoded placeholders)
@@ -225,6 +252,7 @@ The pipeline runs entirely on AWS. To replicate it you will need:
 - [x] Athena views for fast-seller and slow/unsold analysis
 - [x] `days_listed` and `days_to_sell` analytical columns via Athena views
 - [x] Automated data-quality tests (dbt) after each daily run, results in the daily digest
+- [x] CI/CD with GitHub Actions: tests on every PR, automatic deploys on merge
 - [ ] Price history table (append-only change log, separate from SCD)
 - [ ] Scrape-gap buffer rule: require N consecutive missing days before marking a listing as `deleted`
 - [ ] More granular SCD change detection (column-level diff beyond `updatedAt`)
