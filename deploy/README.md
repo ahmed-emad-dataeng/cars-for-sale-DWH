@@ -24,6 +24,12 @@ python scripts/deploy_lambdas.py check --profile YOUR_PROFILE
 ## One-time AWS setup
 Run these once with an administrator (not root) profile, replacing `ACCOUNT_ID` in `aws/*.json` first without committing it. GitHub gets short-lived credentials through OIDC, so no AWS keys are stored in the repo. The role can only be assumed from the `production` GitHub environment, which is limited to `main`.
 
+The `sub` value in `trust-policy.json` must exactly match what GitHub sends, or the deploy fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity`. This repo uses GitHub's immutable format, which includes the owner and repo IDs. In a fork or a copy of this project, use the `sub_claim_prefix` from this command instead, followed by `:environment:production`:
+
+```bash
+gh api repos/OWNER/REPO/actions/oidc/customization/sub
+```
+
 ```bash
 aws iam create-open-id-connect-provider --url https://token.actions.githubusercontent.com --client-id-list sts.amazonaws.com
 ```
