@@ -253,3 +253,29 @@ def test_backfill_builds_gold_day_by_day_in_order(stubbed_s2g, monkeypatch):
     module.lambda_handler({"start_date": "2026-03-01", "end_date": "2026-03-03"}, None)
 
     assert seen == ["2026-03-01", "2026-03-02", "2026-03-03"]
+
+
+def test_same_day_rerun_replaces_the_row_opened_today(silver_to_gold):
+    """Closing it would leave a zero-length version and a duplicate (id, valid_from)."""
+    opened_today = gold((1, "a", "active"))
+    opened_today["scd_valid_from"] = TODAY
+
+    result = silver_to_gold.apply_scd(silver((1, "b", 90.0)), opened_today, TODAY)
+
+    assert len(result) == 1
+    row = result.iloc[0]
+    assert row["status"] == "active"
+    assert row["updatedAt"] == "b"
+    assert row["Price"] == 90.0
+    assert row["first_seen_date"] == "2026-03-01"
+    assert not result.duplicated(subset=["id", "scd_valid_from"]).any()
+
+
+def test_same_day_rerun_with_no_changes_is_a_no_op(silver_to_gold):
+    opened_today = gold((1, "a", "active"))
+    opened_today["scd_valid_from"] = TODAY
+
+    result = silver_to_gold.apply_scd(silver((1, "a")), opened_today, TODAY)
+
+    assert len(result) == 1
+    assert result.iloc[0]["status"] == "active"
