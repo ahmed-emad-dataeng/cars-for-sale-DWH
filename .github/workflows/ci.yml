@@ -10,7 +10,9 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.14" # keep in step with the Lambda runtime
+  # The Lambdas run 3.14, but pyarrow 20 (pinned to match their layer) has no
+  # 3.14 wheel on PyPI. Matching library versions matters more here.
+  PYTHON_VERSION: "3.13"
 
 jobs:
   lint:

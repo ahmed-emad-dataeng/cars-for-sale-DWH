@@ -1,5 +1,6 @@
-# UNCONFIRMED: replace with the versions `scripts/deploy_lambdas.py check` reports
-# from the live layer, so tests run against what production actually uses.
+# Versions in the live layers (AWSSDKPandas-Python314:2, PythonRequestsLayer:1),
+# as reported by `scripts/deploy_lambdas.py check`. Update when a layer changes.
+numpy==2.4.2
 pandas==2.3.3
-pyarrow==22.0.0
-requests==2.34.2
+pyarrow==20.0.0
+requests==2.32.5
