@@ -17,11 +17,10 @@ import sys
 import io
 import argparse
 import textwrap
-from datetime import date, datetime
+from datetime import date
 from typing import Callable
 
 import pandas as pd
-import pyarrow.parquet as pq
 
 # ── Optional S3 support ───────────────────────────────────────────────────────
 try:
@@ -641,7 +640,6 @@ def print_report(results: list[dict], df: pd.DataFrame):
     PASS = "\033[92m✓\033[0m"
     FAIL = "\033[91m✗\033[0m"
     WARN = "\033[93m⚠\033[0m"
-    RESET = "\033[0m"
 
     total = len(results)
     passed = sum(1 for r in results if r["passed"])

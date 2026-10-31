@@ -1,0 +1,5 @@
+# UNCONFIRMED: replace with the versions `scripts/deploy_lambdas.py check` reports
+# from the live layer, so tests run against what production actually uses.
+pandas==2.3.3
+pyarrow==22.0.0
+requests==2.34.2

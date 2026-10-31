@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+select = ["F", "E9"]
+
+[tool.ruff.lint.per-file-ignores]
+# Left as-is so the first drift check compares these with what's deployed
+"Lambda Scripts/DubizzleScrapeDay.py" = ["F541"]
+"Lambda Scripts/Silver-to-Gold.py" = ["F541"]

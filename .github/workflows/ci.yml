@@ -1,0 +1,56 @@
+name: CI
+
+# No path filters: a required check skipped by a filter stays pending forever.
+on:
+  pull_request:
+  workflow_call:
+
+# No AWS access here: this runs on unreviewed code, and the repo is public.
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.14" # keep in step with the Lambda runtime
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: black --check .
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-*.txt
+      - run: pip install -r requirements-lambda.txt -r requirements-dev.txt
+      - run: pytest
+
+  dbt-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the runner image
+        run: docker build -f "Lambda Scripts/dbt-runner/Dockerfile" -t dbt-runner .
+      # Checks the project and packages exactly as deployed. parse needs no Athena.
+      - name: Parse the dbt project inside the image
+        run: >
+          docker run --rm --entrypoint dbt dbt-runner parse
+          --project-dir /var/task/dubizzle_dbt
+          --profiles-dir /var/task/profiles
+          --target-path /tmp/dbt-target
+          --log-path /tmp/dbt-logs
+      - name: Import the Lambda handler
+        run: docker run --rm --entrypoint python dbt-runner -c "import handler"
